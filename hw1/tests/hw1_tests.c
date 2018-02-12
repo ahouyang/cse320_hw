@@ -40,3 +40,4 @@ Test(hw1_tests_suite, help_system_test) {
     cr_assert_eq(return_code, EXIT_SUCCESS, "Program exited with %d instead of EXIT_SUCCESS",
 		 return_code);
 }
+//Test(hw1_tests_suite, )
