@@ -19,5 +19,7 @@
 
 extern char *url_to_snarf;
 extern char *output_file;
+int numKeywords;
+char *keywords[100];
 
 void parse_args(int argc, char *argv[]);

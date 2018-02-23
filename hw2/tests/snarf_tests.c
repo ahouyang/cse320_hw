@@ -34,23 +34,30 @@ Test(http_suite, basic_test) {
     cr_assert_neq(url, NULL);
     HTTP *http = http_open(url_address(url), url_port(url));
     cr_assert_neq(http, NULL);
+
     http_request(http, url);
+
     http_response(http);
     int code;
     char *status = http_status(http, &code);
+
     cr_assert_str_eq(status, "HTTP/1.0 200 OK");
+
     cr_assert_eq(code, 200);
     http_close(http);
 }
 
 Test(http_suite, query_header_test) {
     URL *url = url_parse("http://bsd7.cs.stonybrook.edu/index.html");
+
     cr_assert_neq(url, NULL);
     HTTP *http = http_open(url_address(url), url_port(url));
+
     cr_assert_neq(http, NULL);
     http_request(http, url);
     http_response(http);
     int code;
+
     char *status = http_status(http, &code);
     cr_assert_str_eq(status, "HTTP/1.1 200 OK");
     cr_assert_eq(code, 200);

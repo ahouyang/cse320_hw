@@ -55,4 +55,5 @@ int http_response(HTTP *http);
 int http_getc(HTTP *http);
 char *http_status(HTTP *http, int *code);
 char *http_headers_lookup(HTTP *http, char *key);
+char *http_key_lookup(HTTP *http, char *key);
 

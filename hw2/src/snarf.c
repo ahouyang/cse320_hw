@@ -10,6 +10,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "debug.h"
@@ -25,10 +26,10 @@ main(int argc, char *argv[])
   IPADDR *addr;
   int port, c, code;
   char *status, *method;
-
   parse_args(argc, argv);
   if((up = url_parse(url_to_snarf)) == NULL) {
     fprintf(stderr, "Illegal URL: '%s'\n", argv[1]);
+    //url_free(up);
     exit(1);
   }
   method = url_method(up);
@@ -36,11 +37,14 @@ main(int argc, char *argv[])
   port = url_port(up);
   if(method == NULL || strcasecmp(method, "http")) {
     fprintf(stderr, "Only HTTP access method is supported\n");
+    url_free(up);
     exit(1);
   }
   if((http = http_open(addr, port)) == NULL) {
     fprintf(stderr, "Unable to contact host '%s', port %d\n",
 	    url_hostname(up) != NULL ? url_hostname(up) : "(NULL)", port);
+    //url_free(up);
+    //http_close(http);
     exit(1);
   }
   http_request(http, up);
@@ -55,7 +59,7 @@ main(int argc, char *argv[])
   http_response(http);
   /*
    * At this point, response status and headers are available for querying.
-   * 
+   *
    * Some of the possible HTTP response status codes are as follows:
    *
    *	200	Success -- document follows
@@ -72,6 +76,23 @@ main(int argc, char *argv[])
    *	text/plain	The body of the document is plain ASCII text
    */
   status = http_status(http, &code);
+  //create output file
+  FILE* outputFile;
+  if(output_file != NULL)
+    outputFile = fopen(output_file, "w");
+
+  //lookup keywords in header
+  for(int i = 0; i < numKeywords; i++){
+    char *result = http_headers_lookup(http, keywords[i]);
+    char *key = http_key_lookup(http, keywords[i]);
+    if(result != NULL){
+      fprintf(stderr, "%s: %s\n",key, result);
+    }
+  }
+  //if(numKeywords > 0){
+    //fprintf(stderr, "\n");
+  //}
+
 #ifdef DEBUG
   debug("%s", status);
 #else
@@ -81,9 +102,25 @@ main(int argc, char *argv[])
    * At this point, we can retrieve the body of the document,
    * character by character, using http_getc()
    */
-  while((c = http_getc(http)) != EOF)
+  while((c = http_getc(http)) != EOF){
+    if(output_file == NULL){
     putchar(c);
-  http_close(http);
-  url_free(up);
-  return(0);
+    }
+    else{
+      putc(c, outputFile);
+    }
+  }
+
+  if(strcmp(status,"200") == 0){
+    http_close(http);
+    url_free(up);
+    exit(0);
+  }
+  else{
+    int intStatus = atoi(status);
+    http_close(http);
+    url_free(up);
+    exit(intStatus);
+  }
+  //return(0);
 }

@@ -33,12 +33,15 @@ url_parse(char *url)
   char *cp, c;
   char *slash, *colon;
 
-  if((up = malloc(sizeof(*up))) == NULL)
+  if((up = malloc(sizeof(*up))) == NULL){
+    //free(up);
     return(NULL);
+  }
   /*
    * Make a copy of the argument that we can fiddle with
    */
   if((up->stuff = strdup(url)) == NULL) {
+    //free(up->stuff);
     free(up);
     return(NULL);
   }
@@ -50,18 +53,19 @@ url_parse(char *url)
   cp = up->stuff;
   slash = strchr(cp, '/');
   colon = strchr(cp, ':');
-  if(colon != NULL) {
+  if(colon != NULL && slash != NULL) {
     /*
      * If a colon occurs before any slashes, then we assume the portion
      * of the URL before the colon is the access method.
      */
+
     if(colon < slash) {
       *colon = '\0';
-      free(up->method);
+      //free(up->method);
       up->method = strdup(cp);
       cp = colon+1;
       if(!strcasecmp(up->method, "http"))
-	up->port = 80;
+	     up->port = 80;
     }
     if(*(slash+1) == '/') {
       /*
@@ -69,12 +73,11 @@ url_parse(char *url)
        * and the following string, up to the next slash, colon or the end
        * of the URL, is the host name.
        */
-      for(cp = slash+2; *cp != '\0' && *cp != ':' && *cp != '/'; cp++)
-	;
+      for(cp = slash+2; *cp != '\0' && *cp != ':' && *cp != '/'; cp++);
       c = *cp;
       *cp = '\0';
-      free(up->hostname);
-      up->hostname = slash+2;
+      //free(up->hostname);
+      up->hostname = strdup(slash + 2);
       *cp = c;
       /*
        * If we found a ':', then we have to collect the port number
@@ -98,6 +101,8 @@ url_parse(char *url)
     /*
      * No colon: a relative URL with no method or hostname
      */
+    up->method = NULL;
+    up->hostname = NULL;
     up->path = cp;
   }
   return(up);
@@ -113,6 +118,8 @@ url_free(URL *up)
   free(up->stuff);
   if(up->method != NULL) free(up->method);
   if(up->hostname != NULL) free(up->hostname);
+  //free(up->method);
+  //free(up->hostname);
   free(up);
 }
 
@@ -169,8 +176,9 @@ url_address(URL *up)
 
   if(!up->dnsdone) {
     if(up->hostname != NULL && *up->hostname != '\0') {
-      if((he = gethostbyname(up->hostname)) == NULL)
-	return(NULL);
+      if((he = gethostbyname(up->hostname)) == NULL){
+	       return(NULL);
+       }
       bcopy(he->h_addr, &up->addr, sizeof(struct in_addr));
     }
     up->dnsdone = 1;

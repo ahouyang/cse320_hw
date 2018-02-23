@@ -47,10 +47,12 @@ http_open(IPADDR *addr, int port)
   struct sockaddr_in sa;
   int sock;
 
-  if(addr == NULL)
+  if(addr == NULL){
     return(NULL);
-  if((http = malloc(sizeof(*http))) == NULL)
+  }
+  if((http = malloc(sizeof(*http))) == NULL){
     return(NULL);
+  }
   bzero(http, sizeof(*http));
   if((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     free(http);
@@ -77,6 +79,8 @@ http_open(IPADDR *addr, int port)
 int
 http_close(HTTP *http)
 {
+  //free headers
+  http_free_headers(http->headers);
   int err;
 
   err = fclose(http->file);
@@ -105,6 +109,7 @@ http_file(HTTP *http)
 
 int http_request(HTTP *http, URL *up)
 {
+
   void *prev;
 
   if(http->state != ST_REQ)
@@ -139,27 +144,54 @@ http_response(HTTP *http)
   if(http->state != ST_HDRS)
     return(1);
   /* Ignore SIGPIPE so we don't die while doing this */
+
   prev = signal(SIGPIPE, SIG_IGN);
+
   if(fprintf(http->file, "\r\n") == -1
      || fflush(http->file) == EOF) {
     signal(SIGPIPE, prev);
     return(1);
   }
+
   rewind(http->file);
   signal(SIGPIPE, prev);
-  response = fgetln(http->file, &len);
+  //response = fgetln(http->file, &len);
+  size_t length = 0;
+  //printf("%s\n", response);
+  //printf("getline\n");
+  //response = NULL;
+  response = NULL;
+  getline(&response,&length, http->file);
+  //printf("%s\n", response);
+  len = (int)length;
+  //printf("%d\n", len);
   if(response == NULL
      || (http->response = malloc(len+1)) == NULL)
     return(1);
+  //http->response = NULL;
   strncpy(http->response, response, len);
-  do
-    http->response[len--] = '\0';
-  while(len >= 0 &&
-	(http->response[len] == '\r'
-	 || http->response[len] == '\n'));
+  free(response);
+  len--;//move len away from null pointer
+  while(isspace(http->response[len]) || http->response[len] == '\0'){
+    //printf("%d\n", http->response[len]);
+    //printf("%d\n", len);
+    len--;
+  }
+  len++;//move len back from non-whitespace
+  http->response[len] = '\0';
+  //do{
+  //  http->response[len--] = '\0';
+  //  printf("%d\n", http->response[len]);
+  //}
+  //while(len >= 0 &&
+	//(http->response[len] == '\r'
+	// || http->response[len] == '\n'));
+    //printf("finished loop\n");
   if(sscanf(http->response, "HTTP/%3s %d ", http->version, &http->code) != 2)
     return(1);
+  //printf("outside condition\n");
   http->headers = http_parse_headers(http);
+  //printf("finished http_parse_headers\n");
   http->state = ST_BODY;
   return(0);
 }
@@ -211,16 +243,31 @@ http_parse_headers(HTTP *http)
 {
     FILE *f = http->file;
     HEADERS env = NULL, last = NULL;
-    HDRNODE *node;
+    //HEADERS env = malloc(sizeof(HEADERS));
+    //last = malloc(sizeof(HEADERS));
+    HDRNODE *node = NULL;
     int len;
     char *line, *l, *ll, *cp;
+    size_t length = 0;
+    int first = 1;
 
-    while((ll = fgetln(f, &len)) != NULL) {
+    ll = NULL;
+    //while((ll = fgetln(f, &len)) != NULL) {
+    while(getline(&ll,&length,f) != -1){
+      //printf("first line done\n");
+      len = (int)length;
 	line = l = malloc(len+1);
 	l[len] = '\0';
+
 	strncpy(l, ll, len);
-	while(len > 0 && (l[len-1] == '\n' || l[len-1] == '\r'))
-	      l[--len] = '\0';
+  free(ll);
+  ll = NULL;
+	//while(len > 0 && (l[len-1] == '\n' || l[len-1] == '\r'))
+	//      l[--len] = '\0';
+  while(len > 0 && (isspace(l[len-1]) || l[len-1] == '\0'))
+    len--;
+  l[len] = '\0';
+
 	if(len == 0) {
 	    free(line);
 	    break;
@@ -235,18 +282,42 @@ http_parse_headers(HTTP *http)
 	    free(node);
 	    continue;
 	}
+
 	*cp++ = '\0';
 	node->key = strdup(l);
+  //printf("%s\n", l);
 	while(*cp == ' ')
 	    cp++;
+
 	node->value = strdup(cp);
-	for(cp = node->key; *cp != NULL; cp++)
-	    if(isupper(*cp))
-		*cp = tolower(*cp);
-	last->next = node;
+  //printf("%s\n", cp);
+  cp = node->key;
+	//for(cp = node->key; cp != '\0'; cp++){
+
+  //printf("%s\n", cp);
+  /*for( ;*cp != '\0'; cp++){
+    //printf("%s\n", cp);
+	    if(isupper(*cp)){
+        //printf("to lower\n");
+		    *cp = tolower(*cp);
+      }
+  }*/
+  //printf("outside loop\n");
+  if(!first){
+	   last->next = node;
+}
+  //set env
+
+  //printf("set last\n");
 	last = node;
+  if(first){
+    env = last;
+    first = 0;
+  }
 	free(line);
-    }
+  //free(node);
+  }
+
     return(env);
 }
 
@@ -267,6 +338,9 @@ http_free_headers(HEADERS env)
 	env = next;
     }
 }
+/*
+ Free an HTTP struct
+ */
 
 /*
  * Find the value corresponding to a given key in the headers
@@ -277,10 +351,25 @@ http_headers_lookup(HTTP *http, char *key)
 {
     HEADERS env = http->headers;
     while(env != NULL) {
-	if(!strcmp(env->key, key))
+      //printf("null headers\n");
+	if(!strcasecmp(env->key, key)){//previously was strcmp, not strcasecmp
+      //printf("returned value\n");
 	    return(env->value);
+    }
 	env = env->next;
     }
+    //printf("returned null\n");
     return(NULL);
+}
+char *
+http_key_lookup(HTTP *http, char *key){
+  HEADERS env = http->headers;
+  while(env != NULL){
+    if(!strcasecmp(env->key, key)){
+      return env->key;
+    }
+    env = env->next;
+  }
+  return NULL;
 }
 
