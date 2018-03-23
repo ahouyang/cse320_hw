@@ -14,6 +14,17 @@
 #define HEADER_TO_PAYLOAD(hdr) (((char *)hdr) + sizeof(bud_header))
 #define PAYLOAD_TO_HEADER(ptr) (bud_header *)(((char *)ptr - sizeof(bud_header)))
 
+static int count_free_list(int order){
+    int i = order - ORDER_MIN;
+    bud_free_block* current = &free_list_heads[i];
+    int count = 0;
+    while(current->next != &free_list_heads[i]){
+        count++;
+        current = current->next;
+    }
+    return count;
+}
+
 static int free_list_is_empty(int order) {
     int i = order - ORDER_MIN;
     return(free_list_heads[i].next == &free_list_heads[i]);
@@ -95,6 +106,7 @@ Test(bud_malloc_suite, medium_malloc_diff_types, .init = bud_mem_init, .fini = b
      .timeout = 5) {
     errno = 0;
 
+
     struct s1 {
         int a;
         float b;
@@ -107,6 +119,7 @@ Test(bud_malloc_suite, medium_malloc_diff_types, .init = bud_mem_init, .fini = b
     };
 
     uint32_t size = MIN_BLOCK_SIZE - sizeof(bud_header);
+    //printf("size: %d\n", size);
     char* carr = bud_malloc(size);
     cr_assert_not_null(carr, "bud_malloc returned null on the first call");
     for (int i = 0; i < size; i++) {
@@ -114,10 +127,14 @@ Test(bud_malloc_suite, medium_malloc_diff_types, .init = bud_mem_init, .fini = b
     }
 
     uint32_t sizeof_s1 = sizeof(struct s1);
+
     struct s1 *s_1 = bud_malloc(sizeof_s1);
     cr_assert_not_null(s_1, "bud_malloc returned null on the second call");
+
     s_1->a = 4;
     s_1->b = 2;
+
+
 
     uint32_t sizeof_s2 = sizeof(struct s2);
     struct s2 *s_2 = bud_malloc(sizeof_s2);
@@ -130,14 +147,16 @@ Test(bud_malloc_suite, medium_malloc_diff_types, .init = bud_mem_init, .fini = b
     bud_header *s1_hdr = PAYLOAD_TO_HEADER(s_1);
     bud_header *s2_hdr = PAYLOAD_TO_HEADER(s_2);
 
+
+    //printf("First one\n");
     assert_header_values(carr_hdr, ALLOCATED, ORDER_MIN, UNPADDED, size);
     for(int i = 0; i < size; i++) {
         cr_expect(carr[i] == 'a', "carr[%d] was changed!", i);
     }
-
+    //printf("Second one\n");
     assert_header_values(s1_hdr, ALLOCATED, ORDER_MIN, PADDED, sizeof_s1);
     cr_expect(s_1->a == 4, "field `a` of struct s_1 was changed!");
-
+    //printf("Third one\n");
     assert_header_values(s2_hdr, ALLOCATED, 9, PADDED, sizeof_s2);
     for (int i = 0; i < 100; i++) {
         cr_expect(s_2->a[0] == 5, "field `a` of struct s_2 was changed!");
@@ -173,7 +192,6 @@ Test(bud_malloc_suite, malloc_max_heap, .init = bud_mem_init, .fini = bud_mem_fi
 Test(bud_free_suite, free_no_coalesce, .init = bud_mem_init, .fini = bud_mem_fini,
      .timeout = 5) {
     errno = 0;
-
     void *a = bud_malloc(4096 - sizeof(bud_header)); // -> 4096
     int *x = bud_malloc(sizeof(int)); // -> MIN_BLOCK_SIZE
     void *b = bud_malloc(sizeof(double)*2); // -> MIN_BLOCK_SIZE
@@ -182,8 +200,11 @@ Test(bud_free_suite, free_no_coalesce, .init = bud_mem_init, .fini = bud_mem_fin
 
     assert_header_values(bhdr_b, ALLOCATED, ORDER_MIN, PADDED, sizeof(double)*2);
 
+
     bud_free(x);
-    
+
+
+
     bud_free_block *blk = free_list_heads[0].next; // only x is expected on the list
     assert_nonempty_free_list(ORDER_MIN);
     assert_free_block_values(blk, ORDER_MIN, &free_list_heads[0], &free_list_heads[0]);
@@ -213,7 +234,7 @@ Test(bud_free_suite, free_coalesce_higher_addr_check_ptrs, .init = bud_mem_init,
     void *b = bud_malloc(sizeof(int));       //  1   0   1   1   0   1   1   1   1   0
     void *y = bud_malloc(sizeof(int) * 100); //  1   0   1   1   1   0   1   1   1   0
     void *z = bud_malloc(sizeof(char));      //  0   0   1   1   1   0   1   1   1   0
-    void *c = bud_malloc(sizeof(int));       //  1   1   0   1   1   0   1   1   1   0 
+    void *c = bud_malloc(sizeof(int));       //  1   1   0   1   1   0   1   1   1   0
     void *d = bud_malloc(sizeof(int));       //  0   1   0   1   1   0   1   1   1   0
 
     assert_empty_free_list(5);
@@ -225,9 +246,9 @@ Test(bud_free_suite, free_coalesce_higher_addr_check_ptrs, .init = bud_mem_init,
 
     bud_free(c);                             //  1   1   0   1   1   0   1   1   1   0
     bud_free(z);                             //  2   1   0   1   1   0   1   1   1   0
-    bud_free(y);                             //  2   1   0   1   0   1   1   1   1   0 
-    bud_free(a);                             //  3   1   0   1   0   1   1   1   1   0  
-    bud_free(b);                             //  2   2   0   1   0   1   1   1   1   0 
+    bud_free(y);                             //  2   1   0   1   0   1   1   1   1   0
+    bud_free(a);                             //  3   1   0   1   0   1   1   1   1   0
+    bud_free(b);                             //  2   2   0   1   0   1   1   1   1   0
     bud_free(x);                             //  1   1   1   1   0   1   1   1   1   0
 
     assert_nonempty_free_list(5);
@@ -328,8 +349,99 @@ Test(bud_realloc_suite, realloc_smaller_block_free_block, .init = bud_mem_init, 
     expect_errno_value(0);
 }
 
+
 //############################################
 //STUDENT UNIT TESTS SHOULD BE WRITTEN BELOW
 //DO NOT DELETE THESE COMMENTS
 //############################################
+
+
+Test(bud_my_tests, coalesce, .init = bud_mem_init, .fini = bud_mem_fini,
+     .timeout = 5){
+    errno = 0;
+
+    void* x = bud_malloc(10); // 10 -> 32
+    bud_free(x);
+
+    //bud_free_block* x_free_block = PAYLOAD_TO_HEADER(x);
+    //bud_free_block* current = &free_list_heads[0];
+    //int count = 0;
+    for(int i = 0; i < NUM_FREE_LIST; i++){
+        if(i == NUM_FREE_LIST - 1){
+            cr_assert(count_free_list(i + ORDER_MIN) == 1); // should be one block of max size
+        }
+        else{
+            assert_empty_free_list(i + ORDER_MIN); // all others should've been coalesced
+        }
+    }
+    //cr_assert(count == 2, "expected %d, got %d", 2, count);
+}
+
+Test(bud_my_tests, multiple_blocks_in_same_list, .init = bud_mem_init, .fini = bud_mem_fini,
+     .timeout = 5){
+    void* x = bud_malloc(15000); //should return max block size
+    void* y = bud_malloc(15000);
+
+    bud_free(x);
+    bud_free(y);
+    //there should now be 2 blocks in last list
+
+    cr_assert(count_free_list(ORDER_MAX - 1) == 2);
+}
+
+Test(bud_my_tests, edge_cases, .init = bud_mem_init, .fini = bud_mem_fini,
+     .timeout = 5){
+    void* x = bud_malloc(-1);
+    cr_assert(errno == EINVAL);
+    cr_assert_null(x);
+
+    void* y = bud_malloc(20000);
+    cr_assert(errno == EINVAL);
+    cr_assert_null(x);
+    void* z;
+    while(errno != ENOMEM){
+        z = bud_malloc(15000);
+    }
+    cr_assert(errno == ENOMEM && z == NULL);
+}
+
+
+Test(bud_my_tests, full_free_list_no_coalesce, .init = bud_mem_init, .fini = bud_mem_fini,
+     .timeout = 5){
+    void* a = bud_malloc(20);
+    void* b = bud_malloc(20);
+    void* c = bud_malloc(32);
+    void* d = bud_malloc(64);
+    void* e = bud_malloc(128);
+    void* f = bud_malloc(256);
+    void* g = bud_malloc(512);
+    void* h = bud_malloc(1024);
+    void* i = bud_malloc(2048);
+    void* j = bud_malloc(4096);
+    void* k = bud_malloc(8196);
+    for(int i = 0; i < NUM_FREE_LIST; i++){
+        assert_empty_free_list(i + ORDER_MIN);
+    }
+    bud_free(a);
+    //bud_free(b);
+    bud_free(c);
+    bud_free(d);
+    bud_free(e);
+    bud_free(f);
+    bud_free(g);
+    bud_free(h);
+    bud_free(i);
+    bud_free(j);
+    bud_free(k);
+    for(int i = 0; i < NUM_FREE_LIST; i++){
+        int count = count_free_list(i + ORDER_MIN);
+        cr_assert(count == 1);
+    }
+}
+
+Test(bud_my_tests, realloc_tests, .init = bud_mem_init, .fini = bud_mem_fini,
+     .timeout = 5){
+
+}
+
 

@@ -11,8 +11,8 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include "budmm.h"
-#include "debug.h"
+#include <budmm.h>
+#include <debug.h>
 
 static char *bud_heap_area;     /* Malloc'ed block containing the entire heap */
 static char *bud_heap_startp;   /* First byte of the heap */
