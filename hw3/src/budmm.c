@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <debug.h>
-#include <budmm.h>
+#include "debug.h"
+#include "budmm.h"
 
 /*
  * You should store the heads of your free lists in these variables.
