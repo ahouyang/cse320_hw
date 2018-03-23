@@ -441,7 +441,11 @@ Test(bud_my_tests, full_free_list_no_coalesce, .init = bud_mem_init, .fini = bud
 
 Test(bud_my_tests, realloc_tests, .init = bud_mem_init, .fini = bud_mem_fini,
      .timeout = 5){
-
+    void* x = bud_malloc(32);
+    char* hello = "hello";
+    strcpy(x, "hello");
+    x = bud_realloc(x, 64);
+    cr_assert(strcmp(x,hello) == 0);
 }
 
 
