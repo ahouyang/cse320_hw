@@ -26,5 +26,15 @@ int session_read(SESSION *session, char *buf, int bufsize);
 int session_putc(SESSION *session, char c);
 void session_kill(SESSION *session);
 void session_fini(SESSION *session);
+int get_num_sessions();
+void display_help_screen();
+
+
+
+extern volatile sig_atomic_t killed;
+extern SESSION* terminated;
+
+extern int stderr_file;
+extern int has_stderr_file;
 
 #endif
