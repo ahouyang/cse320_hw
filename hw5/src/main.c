@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
 
     while(1){
         struct sockaddr client_addr;
-        socklen_t addr_len;
+        socklen_t addr_len = sizeof(struct sockaddr_storage);
         int* conn_fd = malloc(sizeof(int));
         *conn_fd = Accept(socket, &client_addr, &addr_len);
         //Accept(socket, &client_addr, &addr_len);

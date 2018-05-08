@@ -51,7 +51,8 @@ MAILBOX *mb_init(char *handle){
     mb->handle = strdup(handle);
     mb->head = NULL;
     mb->tail = NULL;
-    mb->ref_count = 0;
+    mb->ref_count = 1;
+    mb->defunct = 0;
     mb_set_discard_hook(mb, discard_hook);
     Sem_init(&(mb->semaphore), 0, 0);
     pthread_mutex_init(&(mb->mutex), NULL);
@@ -73,8 +74,8 @@ void mb_set_discard_hook(MAILBOX *mb, MAILBOX_DISCARD_HOOK * hook){
  */
 void mb_ref(MAILBOX *mb){
     pthread_mutex_lock(&(mb->mutex));
-    debug("ref count increased");
     mb->ref_count = mb->ref_count + 1;
+    debug("ref count increased to %d", mb->ref_count);
     pthread_mutex_unlock(&(mb->mutex));
 }
 
@@ -89,7 +90,7 @@ void mb_unref(MAILBOX *mb){
     pthread_mutex_lock(&(mb->mutex));
 
     mb->ref_count = mb->ref_count - 1;
-    debug("ref count decreased");
+    debug("ref count decreased now equals %d", mb->ref_count);
     if(mb->ref_count == 0){
         //finalize mailbox
         ENTRY_NODE* cur = mb->head;
@@ -100,6 +101,7 @@ void mb_unref(MAILBOX *mb){
                 mb_unref(cur->entry->content.message.from);
             }
             free(&(cur->entry->content));
+            free(cur->entry->body);
             free(cur->entry);
             free(cur);
             cur = next;
@@ -110,6 +112,7 @@ void mb_unref(MAILBOX *mb){
         pthread_mutex_destroy(&(mb->mutex));
         free(mb);
     }
+    pthread_mutex_unlock(&(mb->mutex));
 }
 
 /*
@@ -155,6 +158,7 @@ char *mb_get_handle(MAILBOX *mb){
  * caller must discard this pointer which it no longer "owns".
  */
 void mb_add_message(MAILBOX *mb, int msgid, MAILBOX *from, void *body, int length){
+    debug("at mb_add_message");
     pthread_mutex_lock(&(mb->mutex));
     MESSAGE* message = Malloc(sizeof(MESSAGE));
     message->from = from;
@@ -198,6 +202,7 @@ void insert_node(MAILBOX* mb, ENTRY_NODE* node){
  * this notice from the mailbox.
  */
 void mb_add_notice(MAILBOX *mb, NOTICE_TYPE ntype, int msgid, void *body, int length){
+    debug("at mb_add_notice");
     pthread_mutex_lock(&(mb->mutex));
     NOTICE* notice = Malloc(sizeof(NOTICE));
     notice->type = ntype;
@@ -229,9 +234,10 @@ void mb_add_notice(MAILBOX *mb, NOTICE_TYPE ntype, int msgid, void *body, int le
  * that service should be terminated.
  */
 MAILBOX_ENTRY *mb_next_entry(MAILBOX *mb){
-    pthread_mutex_lock(&(mb->mutex));
+    debug("at mb_next_entry");
+    P(&(mb->semaphore));
+    debug("locked");
     if(mb->defunct){
-        pthread_mutex_unlock(&(mb->mutex));
         return NULL;
     }
     /*
@@ -242,9 +248,11 @@ MAILBOX_ENTRY *mb_next_entry(MAILBOX *mb){
         pthread_mutex_unlock(&(mb->mutex));
     }
     */
-    P(&(mb->semaphore));
+    pthread_mutex_lock(&(mb->mutex));
     ENTRY_NODE* node = mb->head;
     mb->head = mb->head->next;
+    MAILBOX_ENTRY* entry = node->entry;
+    free(node);
     pthread_mutex_unlock(&(mb->mutex));
-    return node->entry;
+    return entry;
 }

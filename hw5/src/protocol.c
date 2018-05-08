@@ -1,6 +1,7 @@
 #include <protocol.h>
 #include <unistd.h>
 #include <errno.h>
+#include <time.h>
 
 #include "csapp.h"
 
@@ -31,6 +32,11 @@ int proto_send_packet(int fd, bvd_packet_header *hdr, void *payload){
     int payload_length = hdr->payload_length;
     hdr->payload_length = htonl(hdr->payload_length);
     hdr->msgid = htonl(hdr->msgid);
+    //clock_gettime
+    struct timespec time;
+    clock_gettime(CLOCK_REALTIME, &time);
+    hdr->timestamp_sec = time.tv_sec;
+    hdr->timestamp_nsec = time.tv_nsec;
     hdr->timestamp_sec = htonl(hdr->timestamp_sec);
     hdr->timestamp_nsec = htonl(hdr->timestamp_nsec);
     //send header

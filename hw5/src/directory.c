@@ -136,6 +136,7 @@ void dir_unregister(char *handle){
     pthread_mutex_lock(&lock);
     NODE* cur = dir->head;
     while(cur != NULL){
+        NODE* next = cur->next;
         if(strcmp(handle, cur->handle) == 0){
             if(dir->tail == cur && dir->head == cur){
                 dir->head = NULL;
@@ -152,12 +153,14 @@ void dir_unregister(char *handle){
                 cur->next->prev = cur->prev;
                 cur->prev->next = cur->next;
             }
+
             free(cur->handle);
             mb_unref(cur->mb);
             mb_shutdown(cur->mb);
+            free(cur);
             break;
         }
-        cur = cur->next;
+        cur = next;
     }
     pthread_mutex_unlock(&lock);
 }
