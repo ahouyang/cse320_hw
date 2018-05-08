@@ -105,7 +105,7 @@ void *bvd_client_service(void *arg){
         if(response == -1)
             break;
         parse_header(fd, hdr, payload);
-        free(*payload);
+        //free(*payload);
         free(payload);
         free(hdr);
     }
